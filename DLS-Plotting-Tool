@@ -1,0 +1,116 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+from io import StringIO
+
+def _clean_values(values: list) -> list[str]:
+    return [str(x).replace(",", ".") for x in values]
+
+def import_values():
+    # filename = "/Users/ivana/Desktop/modeling/py.code/exported-2 Kopie.txt"
+    filename = "/Users/ivana/Library/Mobile Documents/com~apple~CloudDocs/modeling/py.code/Destruction-29-08-02.csv"
+    df = pd.read_csv(filename, delimiter=';').T
+
+    # This index is chosen specifically for the list imported
+    # If we want to generalize this function, we need to adjust this index accordingly.
+    values = []
+
+    # Iterate over all extrusion measurements
+    for i in range(len(df.keys())):
+        intensities = _clean_values(df[i][77:147])
+        sizes = _clean_values(df[i][7:77])
+        values.append([intensities, sizes])
+    
+    # Combine them into a big array
+    # values = np.array([intensities, sizes], dtype=float)
+    return df, np.array(values, dtype=float)
+
+def plot_measurement_distributions(
+        df,
+        values,
+        show_measurements: 
+            # first 5 measurements will be plotted 
+            list[int] = list(range(5)),
+        acceptance_band: tuple[float, float] | None = None,
+        save_plot: bool = True,
+    ):
+
+    fig, ax = plt.subplots(5, figsize= (8,6), sharex=True)
+
+    # Iterate over all measurements and generate individual curves for each one of them
+    colors = ['slategrey', 'magenta', 'turquoise', 'darkviolet', 'darkseagreen']
+    for i in show_measurements:
+        ax[i].plot(values[i,1], values[i,0],color = colors[i], label=list(df.T["Sample Name"])[i])
+
+        # Show vertical lines for where the acceptance values are
+        if acceptance_band is not None:
+            x = [max(0, acceptance_band[0]), min(acceptance_band[1], np.max(values[0,1]))]
+            y = [np.max(values[:,0]), np.max(values[:,0])]
+        
+        ax[i].fill_between(x, y, 0, color="yellow", alpha=0.4)
+
+        ax[i].legend(loc='upper left')
+        ax[i].set_xlabel("Size [nm]")
+        ax[i].set_ylabel("Intensity [%]")
+        ax[i].set_xscale("log")
+    fig.tight_layout()
+    fig.subplots_adjust(hspace=0)
+    if save_plot:
+        fig.savefig("measurements-distributions.png")
+    plt.show()
+
+
+# acceptance band fitting 
+def calculate_acceptance_band_area(x_low, x_high, values):
+    acceptance_values = []
+    for i in range(values.shape[0]):
+        # Filter lower and larger values
+        filt1 = values[i,1] <= x_high
+        filt2 = values[i,1] >= x_low
+        # Combine them to only yield results when both filters do apply
+        # create a square of acceptance band; intervall 
+        filt = filt1*filt2
+
+        # Sum over the intensities to obtain percentage of points inside acceptable band
+        acceptance_values.append(np.sum(values[i,0,filt]))
+    return np.array(acceptance_values)
+
+def plot_yield(acceptance_values, do_fit=True, save_plot: bool = True):
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    ax.plot(acceptance_values, color = 'magenta')
+
+    if do_fit:
+        from scipy.optimize import curve_fit
+        def fit_func(x, A, λ, c):
+            return A*(1 - np.exp(-λ*x)) + c
+        x_values = np.arange(len(acceptance_values))
+        y_values = acceptance_values
+        popt, pcov = curve_fit(fit_func, x_values, y_values, absolute_sigma=True)
+        perr = np.sqrt(np.diag(pcov))
+        ax.plot(
+            x_values,
+            fit_func(x_values, *popt),
+            label="\
+                Exponential Growth $A(1-\exp(-\lambda n))+c$\n\
+                Fit: A={:5.2f} $\lambda$={:5.2f} c={:5.2f}\n\
+                Errors: $\Delta A=${:5.2f} $\Delta\lambda=${:5.2f} $\Delta c=${:5.2f}"
+                .format(*popt, *perr),
+                color = 'blue'
+        )
+    ax.legend()
+    ax.set_xlabel("Extrusion Number")
+    ax.set_ylabel("Acceptable Yield [%]")
+    if save_plot:
+        fig.savefig("accepted-yield.png")
+    plt.show()
+
+if __name__ == "__main__":
+    df, values = import_values()
+    x_low = 200
+    x_high = 600
+    plot_measurement_distributions(df, values, acceptance_band=(x_low, x_high))
+    acceptance_values = calculate_acceptance_band_area(x_low, x_high, values)
+    plot_yield(acceptance_values)
+
+print() 
