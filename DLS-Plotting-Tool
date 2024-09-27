@@ -1,14 +1,17 @@
-import pandas as pd
-import matplotlib.pyplot as plt
-import numpy as np
-from io import StringIO
+import pandas as pd                             # provides code for data analysis 
+import matplotlib.pyplot as plt                 # matplotlip provides code for creating visualizations 
+import numpy as np                              # provides advanced mathematical functions 
+from io import StringIO                         # reads and writes eads and writes  string buffer (memory files)
 
+#pre-processing data
 def _clean_values(values: list) -> list[str]:
     return [str(x).replace(",", ".") for x in values]
 
+# import .csv file
+# paste file path after filename 
+
 def import_values():
-    # filename = "/Users/ivana/Desktop/modeling/py.code/exported-2 Kopie.txt"
-    filename = "/Users/ivana/Library/Mobile Documents/com~apple~CloudDocs/modeling/py.code/Destruction-29-08-02.csv"
+    filename = "file_path"                     
     df = pd.read_csv(filename, delimiter=';').T
 
     # This index is chosen specifically for the list imported
@@ -17,6 +20,8 @@ def import_values():
 
     # Iterate over all extrusion measurements
     for i in range(len(df.keys())):
+
+    # the rows and columns for intensities and sizes are selected in the table
         intensities = _clean_values(df[i][77:147])
         sizes = _clean_values(df[i][7:77])
         values.append([intensities, sizes])
@@ -29,16 +34,18 @@ def plot_measurement_distributions(
         df,
         values,
         show_measurements: 
-            # first 5 measurements will be plotted 
-            list[int] = list(range(5)),
+
+            # first p measurements will be plotted 
+            # define p
+            list[int] = list(range(p)),
         acceptance_band: tuple[float, float] | None = None,
         save_plot: bool = True,
     ):
-
-    fig, ax = plt.subplots(5, figsize= (8,6), sharex=True)
+    # your value for p
+    fig, ax = plt.subplots(p, figsize= (8,6), sharex=True)
 
     # Iterate over all measurements and generate individual curves for each one of them
-    colors = ['slategrey', 'magenta', 'turquoise', 'darkviolet', 'darkseagreen']
+    colors = ['#06D7FC', '#FBD604', '#F51889', '#ff671c', '#d000ff','#111199','#57fb04','#0496fb']
     for i in show_measurements:
         ax[i].plot(values[i,1], values[i,0],color = colors[i], label=list(df.T["Sample Name"])[i])
 
@@ -47,7 +54,7 @@ def plot_measurement_distributions(
             x = [max(0, acceptance_band[0]), min(acceptance_band[1], np.max(values[0,1]))]
             y = [np.max(values[:,0]), np.max(values[:,0])]
         
-        ax[i].fill_between(x, y, 0, color="yellow", alpha=0.4)
+        ax[i].fill_between(x, y, 0, color="slategrey", alpha=0.2)
 
         ax[i].legend(loc='upper left')
         ax[i].set_xlabel("Size [nm]")
@@ -91,13 +98,20 @@ def plot_yield(acceptance_values, do_fit=True, save_plot: bool = True):
         ax.plot(
             x_values,
             fit_func(x_values, *popt),
+            # your value for p
             label="\
                 Exponential Growth $A(1-\exp(-\lambda n))+c$\n\
-                Fit: A={:5.2f} $\lambda$={:5.2f} c={:5.2f}\n\
-                Errors: $\Delta A=${:5.2f} $\Delta\lambda=${:5.2f} $\Delta c=${:5.2f}"
+                Fit: A={:p.2f} $\lambda$={:p.2f} c={:p.2f}\n\
+                Errors: $\Delta A=${:p.2f} $\Delta\lambda=${:p.2f} $\Delta c=${:p.2f}"
                 .format(*popt, *perr),
                 color = 'blue'
         )
+
+    plt.xticks( np.arange(15) )
+
+    locs, labels = plt.xticks()
+    print(locs, labels) 
+# name axes, edit legend 
     ax.legend()
     ax.set_xlabel("Extrusion Number")
     ax.set_ylabel("Acceptable Yield [%]")
@@ -107,10 +121,12 @@ def plot_yield(acceptance_values, do_fit=True, save_plot: bool = True):
 
 if __name__ == "__main__":
     df, values = import_values()
-    x_low = 200
-    x_high = 600
+    # define minimal and maximal size of your lipid-based nanocarriers 
+    x_low = 175                                 # minimal size
+    x_high = 225                                # maximal size 
+
     plot_measurement_distributions(df, values, acceptance_band=(x_low, x_high))
     acceptance_values = calculate_acceptance_band_area(x_low, x_high, values)
     plot_yield(acceptance_values)
 
-print() 
+print()
